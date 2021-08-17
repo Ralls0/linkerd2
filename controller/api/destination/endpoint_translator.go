@@ -2,10 +2,10 @@ package destination
 
 import (
 	"fmt"
+	"google.golang.org/grpc"
+	"log"
 	"strconv"
 	"strings"
-	//"google.golang.org/grpc"
-	//"log"
 
 	pb "github.com/linkerd/linkerd2-proxy-api/go/destination"
 	"github.com/linkerd/linkerd2-proxy-api/go/net"
@@ -16,8 +16,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 
+	liqonetIpam "github.com/liqotech/liqo/pkg/liqonet/ipam"
 	"google.golang.org/grpc/peer"
-	//liqonetIpam "github.com/liqotech/liqo/pkg/ipam"
 )
 
 const (
@@ -40,7 +40,7 @@ type endpointTranslator struct {
 	filteredSnapshot   watcher.AddressSet
 	stream             pb.Destination_GetServer
 	log                *logging.Entry
-	//liqoIPAM		   liqonetIpam.IpamClient
+	liqoIPAM           liqonetIpam.IpamClient
 }
 
 func newEndpointTranslator(
@@ -67,7 +67,7 @@ func newEndpointTranslator(
 
 	filteredSnapshot := newEmptyAddressSet()
 
-	//liqoIPAM := initIpamClient()
+	liqoIPAM := initIpamClient()
 
 	return &endpointTranslator{
 		controllerNS,
@@ -79,17 +79,17 @@ func newEndpointTranslator(
 		filteredSnapshot,
 		stream,
 		log,
-		//liqoIPAM
+		liqoIPAM,
 	}
 }
 
-//func initIpamClient() liqonetIpam.IpamClient {
-//	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
-//	if err != nil {
-//		log.Fatalf("Cannot connect to Liqo IPAM: %s", err)
-//	}
-//	return liqonetIpam.NewIpamClient(conn)
-//}
+func initIpamClient() liqonetIpam.IpamClient {
+	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		log.Fatalf("Cannot connect to Liqo IPAM: %s", err)
+	}
+	return liqonetIpam.NewIpamClient(conn)
+}
 
 func (et *endpointTranslator) Add(set watcher.AddressSet) {
 	for id, address := range set.Addresses {
