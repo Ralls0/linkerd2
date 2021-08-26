@@ -74,7 +74,7 @@ func (h *handler) handleDestGet(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	var protoRequest destinationPb.GetDestination
+	var protoRequest destinationPb.GetEndpoints
 	err = protohttp.HTTPRequestToProto(req, &protoRequest)
 	if err != nil {
 		protohttp.WriteErrorToHTTPResponse(w, err)

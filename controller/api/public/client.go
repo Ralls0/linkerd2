@@ -45,7 +45,7 @@ func (c *grpcOverHTTPClient) Version(ctx context.Context, req *publicPb.Empty, _
 	return &msg, err
 }
 
-func (c *grpcOverHTTPClient) Get(ctx context.Context, req *destinationPb.GetDestination, _ ...grpc.CallOption) (destinationPb.Destination_GetClient, error) {
+func (c *grpcOverHTTPClient) Get(ctx context.Context, req *destinationPb.GetEndpoints, _ ...grpc.CallOption) (destinationPb.Destination_GetClient, error) {
 	url := c.endpointNameToPublicAPIURL("DestinationGet")
 	httpRsp, err := c.post(ctx, url, req)
 	if err != nil {

@@ -20,6 +20,7 @@ type Server interface {
 }
 
 type grpcServer struct {
+	destinationPb.UnimplementedDestinationServer
 	destinationClient   destinationPb.DestinationClient
 	k8sAPI              *k8s.API
 	controllerNamespace string
@@ -32,12 +33,12 @@ func newGrpcServer(
 	controllerNamespace string,
 	clusterDomain string,
 ) *grpcServer {
-
 	grpcServer := &grpcServer{
-		destinationClient:   destinationClient,
-		k8sAPI:              k8sAPI,
-		controllerNamespace: controllerNamespace,
-		clusterDomain:       clusterDomain,
+		destinationPb.UnimplementedDestinationServer{},
+		destinationClient,
+		k8sAPI,
+		controllerNamespace,
+		clusterDomain,
 	}
 
 	pb.RegisterApiServer(prometheus.NewGrpcServer(), grpcServer)
@@ -50,7 +51,7 @@ func (*grpcServer) Version(ctx context.Context, req *pb.Empty) (*pb.VersionInfo,
 }
 
 // Pass through to Destination service
-func (s *grpcServer) Get(req *destinationPb.GetDestination, stream destinationPb.Destination_GetServer) error {
+func (s *grpcServer) Get(req *destinationPb.GetEndpoints, stream destinationPb.Destination_GetServer) error {
 	destinationStream := stream.(destinationServer)
 	destinationClient, err := s.destinationClient.Get(destinationStream.Context(), req)
 	if err != nil {

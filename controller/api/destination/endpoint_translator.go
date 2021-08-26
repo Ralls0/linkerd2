@@ -2,8 +2,8 @@ package destination
 
 import (
 	"fmt"
-	"google.golang.org/grpc"
-	"log"
+	//"google.golang.org/grpc"
+	//"log"
 	"strconv"
 	"strings"
 
@@ -15,9 +15,6 @@ import (
 	logging "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
-
-	liqonetIpam "github.com/liqotech/liqo/pkg/liqonet/ipam"
-	"google.golang.org/grpc/peer"
 )
 
 const (
@@ -40,7 +37,10 @@ type endpointTranslator struct {
 	filteredSnapshot   watcher.AddressSet
 	stream             pb.Destination_GetServer
 	log                *logging.Entry
-	liqoIPAM           liqonetIpam.IpamClient
+
+	srcClusterId        string
+	controllerClusterId string
+	//liqoIPAM           liqonetIpam.IpamClient
 }
 
 func newEndpointTranslator(
@@ -53,6 +53,8 @@ func newEndpointTranslator(
 	nodes coreinformers.NodeInformer,
 	stream pb.Destination_GetServer,
 	log *logging.Entry,
+	srcClusterId string,
+	controllerClusterId string,
 ) *endpointTranslator {
 	log = log.WithFields(logging.Fields{
 		"component": "endpoint-translator",
@@ -67,7 +69,7 @@ func newEndpointTranslator(
 
 	filteredSnapshot := newEmptyAddressSet()
 
-	liqoIPAM := initIpamClient()
+	//liqoIPAM := initIpamClient()
 
 	return &endpointTranslator{
 		controllerNS,
@@ -79,17 +81,19 @@ func newEndpointTranslator(
 		filteredSnapshot,
 		stream,
 		log,
-		liqoIPAM,
+		srcClusterId,
+		controllerClusterId,
+		//liqoIPAM,
 	}
 }
 
-func initIpamClient() liqonetIpam.IpamClient {
-	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("Cannot connect to Liqo IPAM: %s", err)
-	}
-	return liqonetIpam.NewIpamClient(conn)
-}
+//func initIpamClient() liqonetIpam.IpamClient {
+//	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
+//	if err != nil {
+//		log.Fatalf("Cannot connect to Liqo IPAM: %s", err)
+//	}
+//	return liqonetIpam.NewIpamClient(conn)
+//}
 
 func (et *endpointTranslator) Add(set watcher.AddressSet) {
 	for id, address := range set.Addresses {
@@ -227,7 +231,6 @@ func (et *endpointTranslator) NoEndpoints(exists bool) {
 
 func (et *endpointTranslator) sendClientAdd(set watcher.AddressSet) {
 	addrs := []*pb.WeightedAddr{}
-	peerIP := et.getPeerIpAddress()
 	for _, address := range set.Addresses {
 		var (
 			wa  *pb.WeightedAddr
@@ -284,13 +287,14 @@ func (et *endpointTranslator) sendClientAdd(set watcher.AddressSet) {
 			continue
 		}
 		// TODO("Call function here")
-		endpointAddr, err := et.translateEndpointIP(peerIP, wa.Addr)
-		if err != nil {
-			et.log.Errorf("Failed to transalete the IP for the peer cluster")
-		} else {
-			wa.Addr = endpointAddr
+		if et.controllerClusterId != et.srcClusterId {
+			endpointAddr, err := et.translateEndpointIP(wa.Addr)
+			if err != nil {
+				et.log.Errorf("Failed to transalete the IP for the peer cluster")
+			} else {
+				wa.Addr = endpointAddr
+			}
 		}
-
 		addrs = append(addrs, wa)
 	}
 
@@ -309,7 +313,6 @@ func (et *endpointTranslator) sendClientAdd(set watcher.AddressSet) {
 
 func (et *endpointTranslator) sendClientRemove(set watcher.AddressSet) {
 	addrs := []*net.TcpAddress{}
-	peerIP := et.getPeerIpAddress()
 	for _, address := range set.Addresses {
 		tcpAddr, err := toAddr(address)
 		if err != nil {
@@ -317,11 +320,13 @@ func (et *endpointTranslator) sendClientRemove(set watcher.AddressSet) {
 			continue
 		}
 		// TODO("Call function here")
-		endpointAddr, err := et.translateEndpointIP(peerIP, tcpAddr)
-		if err != nil {
-			et.log.Errorf("Failed to transalete the IP for the peer cluster")
-		} else {
-			tcpAddr = endpointAddr
+		if et.controllerClusterId != et.srcClusterId {
+			endpointAddr, err := et.translateEndpointIP(tcpAddr)
+			if err != nil {
+				et.log.Errorf("Failed to transalete the IP for the peer cluster")
+			} else {
+				tcpAddr = endpointAddr
+			}
 		}
 		addrs = append(addrs, tcpAddr)
 	}
@@ -458,22 +463,15 @@ func getInboundPort(podSpec *corev1.PodSpec) (uint32, error) {
 	return 0, fmt.Errorf("failed to find %s environment variable in any container for given pod spec", envInboundListenAddr)
 }
 
-// extract peer IP address from gRPC stream context
-func (et *endpointTranslator) getPeerIpAddress() string {
-	p, _ := peer.FromContext(et.stream.Context())
-	address := p.Addr.String()
-	ip := strings.Split(address, ":")[0]
-	et.log.Debugf("Peer IP is %s", ip)
-	return ip
-}
-
 // translate IP address for the peer cluster
-func (et *endpointTranslator) translateEndpointIP(peerIP string, address *net.TcpAddress) (*net.TcpAddress, error) {
+func (et *endpointTranslator) translateEndpointIP(address *net.TcpAddress) (*net.TcpAddress, error) {
+	et.log.Infof("Controller ClusterID = %s\nSource ClusterID = %s\n", et.controllerClusterId, et.srcClusterId)
 	endpointIP := address.GetIp().String()
-	ip, err := grpcCall(endpointIP, peerIP)
+	ip, err := grpcCall(endpointIP, et.srcClusterId)
 	if err != nil {
 		return nil, err
 	}
+	et.log.Infof("Translated IP is: %s", ip)
 	ipv4, err := addr.ParseProxyIPV4(ip)
 	if err != nil {
 		return nil, err

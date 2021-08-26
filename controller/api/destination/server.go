@@ -1,8 +1,10 @@
 package destination
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"strconv"
 	"strings"
@@ -25,6 +27,8 @@ import (
 
 type (
 	server struct {
+		pb.UnimplementedDestinationServer
+
 		endpoints     *watcher.EndpointsWatcher
 		opaquePorts   *watcher.OpaquePortsWatcher
 		profiles      *watcher.ProfileWatcher
@@ -41,6 +45,8 @@ type (
 		k8sAPI   *k8s.API
 		log      *logging.Entry
 		shutdown <-chan struct{}
+
+		clusterId string
 	}
 )
 
@@ -78,7 +84,20 @@ func NewServer(
 	trafficSplits := watcher.NewTrafficSplitWatcher(k8sAPI, log)
 	ips := watcher.NewIPWatcher(k8sAPI, endpoints, log)
 
+	// Get cluster id
+
+	//cm, err := k8sAPI.CM().Lister().ConfigMaps("liqo").Get("cluster-id")
+	cm, err := k8sAPI.Client.CoreV1().ConfigMaps("liqo").Get(context.TODO(), "cluster-id", metav1.GetOptions{})
+	var clusterId string
+	if err != nil {
+		log.Errorf("Cannot get Cluster ID: %s", err)
+		clusterId = ""
+	} else {
+		clusterId = cm.Data["cluster-id"]
+	}
+
 	srv := server{
+		pb.UnimplementedDestinationServer{},
 		endpoints,
 		opaquePorts,
 		profiles,
@@ -93,6 +112,7 @@ func NewServer(
 		k8sAPI,
 		log,
 		shutdown,
+		clusterId,
 	}
 
 	s := prometheus.NewGrpcServer()
@@ -101,7 +121,7 @@ func NewServer(
 	return s
 }
 
-func (s *server) Get(dest *pb.GetDestination, stream pb.Destination_GetServer) error {
+func (s *server) Get(dest *pb.GetEndpoints, stream pb.Destination_GetServer) error {
 	client, _ := peer.FromContext(stream.Context())
 	log := s.log
 	if client != nil {
@@ -125,6 +145,8 @@ func (s *server) Get(dest *pb.GetDestination, stream pb.Destination_GetServer) e
 		s.nodes,
 		stream,
 		log,
+		dest.GetClusterId(),
+		s.clusterId,
 	)
 
 	// The host must be fully-qualified or be an IP address.
