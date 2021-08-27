@@ -1,10 +1,8 @@
 package destination
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"net"
 	"strconv"
 	"strings"
@@ -45,8 +43,6 @@ type (
 		k8sAPI   *k8s.API
 		log      *logging.Entry
 		shutdown <-chan struct{}
-
-		clusterId string
 	}
 )
 
@@ -84,18 +80,6 @@ func NewServer(
 	trafficSplits := watcher.NewTrafficSplitWatcher(k8sAPI, log)
 	ips := watcher.NewIPWatcher(k8sAPI, endpoints, log)
 
-	// Get cluster id
-
-	//cm, err := k8sAPI.CM().Lister().ConfigMaps("liqo").Get("cluster-id")
-	cm, err := k8sAPI.Client.CoreV1().ConfigMaps("liqo").Get(context.TODO(), "cluster-id", metav1.GetOptions{})
-	var clusterId string
-	if err != nil {
-		log.Errorf("Cannot get Cluster ID: %s", err)
-		clusterId = ""
-	} else {
-		clusterId = cm.Data["cluster-id"]
-	}
-
 	srv := server{
 		pb.UnimplementedDestinationServer{},
 		endpoints,
@@ -112,7 +96,6 @@ func NewServer(
 		k8sAPI,
 		log,
 		shutdown,
-		clusterId,
 	}
 
 	s := prometheus.NewGrpcServer()
@@ -146,7 +129,6 @@ func (s *server) Get(dest *pb.GetEndpoints, stream pb.Destination_GetServer) err
 		stream,
 		log,
 		dest.GetClusterId(),
-		s.clusterId,
 	)
 
 	// The host must be fully-qualified or be an IP address.

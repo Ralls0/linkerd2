@@ -3,7 +3,6 @@ package destination
 import (
 	"fmt"
 	//"google.golang.org/grpc"
-	//"log"
 	"strconv"
 	"strings"
 
@@ -38,8 +37,7 @@ type endpointTranslator struct {
 	stream             pb.Destination_GetServer
 	log                *logging.Entry
 
-	srcClusterId        string
-	controllerClusterId string
+	srcClusterId string
 	//liqoIPAM           liqonetIpam.IpamClient
 }
 
@@ -54,7 +52,6 @@ func newEndpointTranslator(
 	stream pb.Destination_GetServer,
 	log *logging.Entry,
 	srcClusterId string,
-	controllerClusterId string,
 ) *endpointTranslator {
 	log = log.WithFields(logging.Fields{
 		"component": "endpoint-translator",
@@ -82,7 +79,6 @@ func newEndpointTranslator(
 		stream,
 		log,
 		srcClusterId,
-		controllerClusterId,
 		//liqoIPAM,
 	}
 }
@@ -287,10 +283,10 @@ func (et *endpointTranslator) sendClientAdd(set watcher.AddressSet) {
 			continue
 		}
 		// TODO("Call function here")
-		if et.controllerClusterId != et.srcClusterId {
+		if et.srcClusterId != "" {
 			endpointAddr, err := et.translateEndpointIP(wa.Addr)
 			if err != nil {
-				et.log.Errorf("Failed to transalete the IP for the peer cluster")
+				et.log.Errorf("Failed to transalete the IP for the peer cluster: %s", err)
 			} else {
 				wa.Addr = endpointAddr
 			}
@@ -320,10 +316,10 @@ func (et *endpointTranslator) sendClientRemove(set watcher.AddressSet) {
 			continue
 		}
 		// TODO("Call function here")
-		if et.controllerClusterId != et.srcClusterId {
+		if et.srcClusterId != "" {
 			endpointAddr, err := et.translateEndpointIP(tcpAddr)
 			if err != nil {
-				et.log.Errorf("Failed to transalete the IP for the peer cluster")
+				et.log.Errorf("Failed to transalete the IP for the peer cluster: %s", err)
 			} else {
 				tcpAddr = endpointAddr
 			}
@@ -465,13 +461,12 @@ func getInboundPort(podSpec *corev1.PodSpec) (uint32, error) {
 
 // translate IP address for the peer cluster
 func (et *endpointTranslator) translateEndpointIP(address *net.TcpAddress) (*net.TcpAddress, error) {
-	et.log.Infof("Controller ClusterID = %s\nSource ClusterID = %s\n", et.controllerClusterId, et.srcClusterId)
+	et.log.Infof("Source ClusterID = %s\n", et.srcClusterId)
 	endpointIP := address.GetIp().String()
 	ip, err := grpcCall(endpointIP, et.srcClusterId)
 	if err != nil {
 		return nil, err
 	}
-	et.log.Infof("Translated IP is: %s", ip)
 	ipv4, err := addr.ParseProxyIPV4(ip)
 	if err != nil {
 		return nil, err

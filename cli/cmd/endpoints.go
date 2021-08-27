@@ -128,7 +128,7 @@ func requestEndpointsFromAPI(client public.Client, authorities []string) (endpoi
 		go func(authority string) {
 			defer wg.Done()
 			if len(errors) == 0 {
-				dest := &destinationPb.GetDestination{
+				dest := &destinationPb.GetEndpoints{
 					Scheme: "http:",
 					Path:   authority,
 				}
