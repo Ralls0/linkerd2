@@ -461,12 +461,13 @@ func getInboundPort(podSpec *corev1.PodSpec) (uint32, error) {
 
 // translate IP address for the peer cluster
 func (et *endpointTranslator) translateEndpointIP(address *net.TcpAddress) (*net.TcpAddress, error) {
-	et.log.Infof("Source ClusterID = %s\n", et.srcClusterId)
-	endpointIP := address.GetIp().String()
+	//et.log.Infof("Source ClusterID = %s", et.srcClusterId)
+	endpointIP := addr.ProxyIPToString(address.GetIp())
 	ip, err := grpcCall(endpointIP, et.srcClusterId)
 	if err != nil {
 		return nil, err
 	}
+	//et.log.Infof("Endpoint IP = %s", ip)
 	ipv4, err := addr.ParseProxyIPV4(ip)
 	if err != nil {
 		return nil, err
