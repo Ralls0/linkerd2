@@ -55,15 +55,17 @@ require (
 // to avoid the `github.com/golang/protobuf/protoc-gen-go/generator` deprecation warning
 // (see https://github.com/golang/protobuf/issues/1104)
 replace (
+	github.com/containernetworking/cni => github.com/containernetworking/cni v0.6.1-0.20180218032124-142cde0c766c
 	github.com/grpc-ecosystem/grpc-gateway => github.com/grpc-ecosystem/grpc-gateway v1.14.8
 	github.com/linkerd/linkerd2-proxy-api => github.com/liqotech/linkerd2-proxy-api v0.1.19-0.20210825161558-3cc9152f0f80
-	//github.com/liqotech/liqo =>  github.com/giandonatoFarina/liqo v0.2.2-0.20210827152726-1d22246f6203
+	github.com/liqotech/liqo => github.com/giandonatoFarina/liqo v0.2.2-0.20210827174410-ed10e5c0a428
 	github.com/mittwald/go-helm-client v0.8.1 => github.com/liqotech/go-helm-client v0.8.1-0.20210823204019-f878e0fc4d26
+	github.com/prometheus/client_golang => github.com/prometheus/client_golang v1.7.0
 	github.com/virtual-kubelet/virtual-kubelet => github.com/liqotech/virtual-kubelet v1.5.1-0.20210726130647-f2333d82a6de
 	k8s.io/api => k8s.io/api v0.21.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.21.0
 	k8s.io/client-go => k8s.io/client-go v0.21.0
 	k8s.io/code-generator => k8s.io/code-generator v0.21.0
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.21.0
 )

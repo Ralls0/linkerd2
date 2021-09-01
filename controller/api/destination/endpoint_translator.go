@@ -1,7 +1,9 @@
 package destination
 
 import (
+	"context"
 	"fmt"
+	liqonetIpam "github.com/liqotech/liqo/pkg/liqonet/ipam"
 	"google.golang.org/grpc"
 	"strconv"
 	"strings"
@@ -11,7 +13,6 @@ import (
 	"github.com/linkerd/linkerd2/controller/api/destination/watcher"
 	"github.com/linkerd/linkerd2/pkg/addr"
 	"github.com/linkerd/linkerd2/pkg/k8s"
-	liqonetIpam "github.com/liqotech/liqo/pkg/liqonet/ipam"
 	logging "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	coreinformers "k8s.io/client-go/informers/core/v1"
@@ -39,7 +40,6 @@ type endpointTranslator struct {
 	log                *logging.Entry
 
 	srcClusterId string
-	liqoIPAM     liqonetIpam.IpamClient
 }
 
 func newEndpointTranslator(
@@ -67,13 +67,6 @@ func newEndpointTranslator(
 
 	filteredSnapshot := newEmptyAddressSet()
 
-	liqoIPAM, err := initIpamClient()
-	if err != nil {
-		log.Errorf("Cannot connect to Liqo IPAM: %s", err)
-	} else {
-		log.Infof("Connected to Liqo IPAM")
-	}
-
 	return &endpointTranslator{
 		controllerNS,
 		identityTrustDomain,
@@ -85,16 +78,7 @@ func newEndpointTranslator(
 		stream,
 		log,
 		srcClusterId,
-		liqoIPAM,
 	}
-}
-
-func initIpamClient() (liqonetIpam.IpamClient, error) {
-	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		return nil, err
-	}
-	return liqonetIpam.NewIpamClient(conn), nil
 }
 
 func (et *endpointTranslator) Add(set watcher.AddressSet) {
@@ -467,13 +451,31 @@ func getInboundPort(podSpec *corev1.PodSpec) (uint32, error) {
 
 // translate IP address for the peer cluster
 func (et *endpointTranslator) translateEndpointIP(address *net.TcpAddress) (*net.TcpAddress, error) {
-	//et.log.Infof("Source ClusterID = %s", et.srcClusterId)
+	// Convert endpointIP to string
 	endpointIP := addr.ProxyIPToString(address.GetIp())
-	ip, err := grpcCall(endpointIP, et.srcClusterId)
+	// Create request
+	request := &liqonetIpam.GetRemotePodIPRequest{
+		Ip:        endpointIP,
+		ClusterID: et.srcClusterId,
+	}
+
+	liqoIPAM, err := initIpamClient()
+	if err != nil {
+		return nil, fmt.Errorf("Cannot connect to Liqo IPAM: %s", err)
+	} else {
+		et.log.Infof("Connected to Liqo IPAM")
+	}
+
+	// Send request to IPAM
+	response, err := liqoIPAM.GetRemotePodIP(context.TODO(), request)
 	if err != nil {
 		return nil, err
 	}
-	//et.log.Infof("Endpoint IP = %s", ip)
+	// Get translated IP from response
+	ip := response.GetRemoteIP()
+	et.log.Infof("Converted %s into %s", endpointIP, ip)
+
+	// Convert translated IP into the correct type
 	ipv4, err := addr.ParseProxyIPV4(ip)
 	if err != nil {
 		return nil, err
@@ -484,7 +486,10 @@ func (et *endpointTranslator) translateEndpointIP(address *net.TcpAddress) (*net
 	}, nil
 }
 
-// placeholder function
-func grpcCall(endpointIP string, peerIP string) (string, error) {
-	return endpointIP, nil
+func initIpamClient() (liqonetIpam.IpamClient, error) {
+	conn, err := grpc.Dial("liqo-network-manager.liqo.svc.cluster.local:6000", grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		return nil, err
+	}
+	return liqonetIpam.NewIpamClient(conn), nil
 }
