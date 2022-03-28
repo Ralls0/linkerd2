@@ -10,34 +10,34 @@ set -eu
 bindir=$( cd "${0%/*}" && pwd )
 rootdir=$( cd "$bindir"/.. && pwd )
 builddir="$rootdir/target/proxy"
+echo "[i] bindir: ${bindir}"
+echo "[i] rootdir: ${rootdir}"
+echo "[i] builddir: ${builddir}"
 
 version=${1:-latest}
 if [ "$version" = latest ]; then
-  version=$(curl -sL https://api.github.com/repos/linkerd/linkerd2-proxy/releases/latest |jq -r .tag_name | sed 's,^release/,,')
+  version=$(curl -sL https://api.github.com/repos/Ralls0/linkerd2-proxy/releases/latest |jq -r .tag_name | sed 's,^release/,,')
 fi
 
-assetbase="https://github.com/linkerd/linkerd2-proxy/releases/download/release%2F${version}"
+echo "[i] version: ${version}"
+
+assetbase="https://github.com/Ralls0/linkerd2-proxy/releases/download/${version}"
 arch=${2:-amd64}
 pkgname="linkerd2-proxy-${version}-${arch}"
 pkgfile="${pkgname}.tar.gz"
-shafile="${pkgname}.txt"
+
+echo "[i] assetbase: ${assetbase}"
+echo "[i] arch: ${arch}"
+echo "[i] pkgname: ${pkgname}"
+echo "[i] pkgfile: ${pkgfile}"
 
 mkdir -p "$builddir"
 cd "$builddir"
+echo "[i] curl: $assetbase/$pkgfile"
 curl -sLO "$assetbase/$pkgfile"
-curl -sLO "$assetbase/$shafile"
 
+echo "[i] tar: $pkgfile"
 tar -zxvf "$pkgfile" >&2
-expected=$(awk '{print $1}' "$shafile")
-if [ "$(uname)" = "Darwin" ]; then
-  computed=$(openssl dgst -sha256 "$pkgfile" | awk '{print $2}')
-else
-  computed=$(sha256sum "$pkgfile" | awk '{print $1}')
-fi
-if [ "$computed" != "$expected" ]; then
-  echo 'sha mismatch' >&2
-  exit 1
-fi
 
 mv "$pkgname/LICENSE" .
 mv "$pkgname/bin/linkerd2-proxy" .
