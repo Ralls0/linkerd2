@@ -28,7 +28,7 @@ jobs:
         echo "TAG=$(CI_FORCE_CLEAN=1 bin/root-tag)" >> $GITHUB_ENV
 
         . bin/_docker.sh
-        echo "DOCKER_REGISTRY=cr.l5d.io/linkerd" >> $GITHUB_ENV
+        echo "DOCKER_REGISTRY=ghcr.io/ralls0/linkerd2" >> $GITHUB_ENV
         echo "DOCKER_BUILDKIT_CACHE=${{ runner.temp }}/.buildx-cache" >> $GITHUB_ENV
     - name: Cache docker layers
       # actions/cache@v2.0.0
@@ -131,7 +131,7 @@ jobs:
         echo "TAG=$(CI_FORCE_CLEAN=1 bin/root-tag)" >> $GITHUB_ENV
 
         . bin/_docker.sh
-        echo "DOCKER_REGISTRY=cr.l5d.io/linkerd" >> $GITHUB_ENV
+        echo "DOCKER_REGISTRY=ghcr.io/ralls0/linkerd2" >> $GITHUB_ENV
     - name: Download image archives
       # actions/download-artifact@v1
       uses: actions/download-artifact@18f0f591fbc635562c815484d73b6e8e3980482e
